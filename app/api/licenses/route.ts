@@ -5,6 +5,8 @@ import { verifySession, getSessionCookieName } from '@/lib/auth'
 import { db } from '@/lib/db'
 import { licenseKeys } from '@/lib/db/schema'
 
+export const dynamic = 'force-dynamic'
+
 async function authorized() {
   const value = (await cookies()).get(getSessionCookieName())?.value
   return verifySession(value)

@@ -5,6 +5,8 @@ import { db } from '@/lib/db'
 import { licenseKeys } from '@/lib/db/schema'
 import LicensePanel from './license-panel'
 
+export const dynamic = 'force-dynamic'
+
 export default async function Page() {
   const cookieStore = await cookies()
   const loggedIn = verifySession(cookieStore.get(getSessionCookieName())?.value)
