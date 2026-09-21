@@ -27,18 +27,38 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}))
   const value = typeof body.key === 'string' ? body.key.trim() : ''
   if (!/^SNX(?:-[A-Z0-9]{4}){3}-[A-Z0-9]{8}$/.test(value)) return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
-  const [row] = await db.insert(licenseKeys).values({ key: value, expiresAt }).returning()
-  return NextResponse.json(serialize(row), { status: 201 })
+  const expiresAt = typeof body.expiresAt === 'string' ? new Date(body.expiresAt) : new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)
+  if (Number.isNaN(expiresAt.getTime())) return NextResponse.json({ error: 'Invalid expiration date' }, { status: 400 })
+  try {
+    const [row] = await db.insert(licenseKeys).values({ key: value, expiresAt }).returning()
+    return NextResponse.json(serialize(row), { status: 201 })
+  } catch {
+    return NextResponse.json({ error: 'That license key already exists' }, { status: 409 })
+  }
 }
 
 export async function PATCH(request: Request) {
   if (!(await authorized())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
   const body = await request.json().catch(() => ({}))
-  if (typeof body.key !== 'string' || body.status !== 'revoked') return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
-  const [row] = await db.update(licenseKeys).set({ status: 'revoked' }).where(eq(licenseKeys.key, body.key)).returning()
-  if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
-  return NextResponse.json(serialize(row))
+  if (typeof body.key !== 'string') return NextResponse.json({ error: 'Invalid request' }, { status: 400 })
+
+  if (body.status === 'revoked') {
+    const [row] = await db.update(licenseKeys).set({ status: 'revoked' }).where(eq(licenseKeys.key, body.key)).returning()
+    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(serialize(row))
+  }
+
+  const newKey = typeof body.newKey === 'string' ? body.newKey.trim().toUpperCase() : body.key
+  if (!/^SNX(?:-[A-Z0-9]{4}){3}-[A-Z0-9]{8}$/.test(newKey)) return NextResponse.json({ error: 'Invalid key' }, { status: 400 })
+  const expiresAt = typeof body.expiresAt === 'string' ? new Date(body.expiresAt) : null
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) return NextResponse.json({ error: 'Invalid expiration date' }, { status: 400 })
+  try {
+    const [row] = await db.update(licenseKeys).set({ key: newKey, expiresAt }).where(eq(licenseKeys.key, body.key)).returning()
+    if (!row) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+    return NextResponse.json(serialize(row))
+  } catch {
+    return NextResponse.json({ error: 'That license key already exists' }, { status: 409 })
+  }
 }
 
 export async function DELETE(request: Request) {
